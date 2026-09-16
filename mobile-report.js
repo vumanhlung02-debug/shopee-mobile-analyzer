@@ -4,6 +4,8 @@
   const APP_ID = 'scm-mobile-analyzer';
   const API_ORIGIN = 'https://affiliate.shopee.vn';
   const PAGE_SIZE = 100;
+  const MAX_ORDER_PAGES = 500;
+  const MAX_CLICK_PAGES = 500;
   const SUPPORTED_HOST_RE = /(^|\.)affiliate\.shopee\.vn$/i;
   const state = {
     days: 7,
@@ -255,11 +257,11 @@
       const range = buildRange(state.days);
       const orderRaw = await fetchPaged(
         (page) => `/api/v3/report/list?page_size=${PAGE_SIZE}&page_num=${page}&purchase_time_s=${range.startSec}&purchase_time_e=${range.endSec}&version=1`,
-        20,
+        MAX_ORDER_PAGES,
       );
       const clickRaw = await fetchPaged(
         (page) => `/api/v1/click_report/list?click_time_s=${range.startSec}&click_time_e=${range.endSec}&page_num=${page}&page_size=${PAGE_SIZE}`,
-        30,
+        MAX_CLICK_PAGES,
       );
       state.orders = orderRaw.flatMap(normalizeOrderContainer).filter((order) => order.purchaseTs);
       state.clicks = clickRaw.map(normalizeClick).filter((click) => click.clickTs);
