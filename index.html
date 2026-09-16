@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shopee Affiliate Mobile Analyzer</title>
+  <style>
+    body{font-family:Arial,"Segoe UI",sans-serif;margin:0;background:#fff7ed;color:#111827}
+    main{max-width:760px;margin:0 auto;padding:28px 18px}
+    .panel{background:#fff;border:1px solid #fed7aa;border-radius:14px;padding:20px;box-shadow:0 10px 30px rgba(124,45,18,.12)}
+    h1{font-size:26px;margin:0 0 10px}
+    p{line-height:1.55}
+    code,textarea{font-family:Consolas,monospace}
+    textarea{width:100%;min-height:116px;border:1px solid #d1d5db;border-radius:10px;padding:12px;font-size:13px}
+    .link{word-break:break-all;background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:12px}
+    .note{color:#6b7280;font-size:14px}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="panel">
+      <h1>Shopee Affiliate Mobile Analyzer</h1>
+      <p>File script đang được host tại:</p>
+      <p class="link"><code id="scriptUrl"></code></p>
+      <p>Dùng bookmarklet này trên Chrome điện thoại khi đang mở <code>affiliate.shopee.vn</code>:</p>
+      <textarea id="bookmarklet" readonly></textarea>
+      <p class="note">Nếu Chrome hoặc Shopee chặn file ngoài, bookmarklet mới sẽ hiện thông báo lỗi ngay trên màn hình thay vì im lặng.</p>
+      <p class="note">Script chỉ gọi API Shopee Affiliate bằng phiên đăng nhập hiện tại và hiển thị kết quả trên trình duyệt.</p>
+    </div>
+  </main>
+  <script>
+    const scriptUrl = new URL('affiliate-mobile-analyzer.js', location.href).href;
+    const bookmarklet = "javascript:(function(){var u='" + scriptUrl + "?t='+Date.now(),d=document,b=d.body||d.documentElement,n=d.createElement('div');n.textContent='Đang nạp Shopee Analyzer...';n.style.cssText='position:fixed;z-index:2147483647;left:10px;right:10px;bottom:10px;background:#111827;color:#fff;padding:12px;border-radius:10px;font:14px Arial,sans-serif';b.appendChild(n);var s=d.createElement('script');s.src=u;s.onload=function(){n.remove();};s.onerror=function(){n.textContent='Không tải được Shopee Analyzer. Shopee/Chrome có thể đang chặn file ngoài.';};(d.head||d.documentElement).appendChild(s);})();";
+    document.getElementById('scriptUrl').textContent = scriptUrl;
+    document.getElementById('bookmarklet').value = bookmarklet;
+  </script>
+</body>
+</html>
