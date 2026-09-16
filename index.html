@@ -29,7 +29,7 @@
     </div>
   </main>
   <script>
-    const scriptUrl = new URL('affiliate-mobile-analyzer.js', location.href).href;
+    const scriptUrl = new URL('mobile-report.js', location.href).href;
     const bookmarklet = "javascript:(function(){var u='" + scriptUrl + "?t='+Date.now(),d=document,b=d.body||d.documentElement,n=d.createElement('div');n.textContent='Đang nạp Shopee Analyzer...';n.style.cssText='position:fixed;z-index:2147483647;left:10px;right:10px;bottom:10px;background:#111827;color:#fff;padding:12px;border-radius:10px;font:14px Arial,sans-serif';b.appendChild(n);var s=d.createElement('script');s.src=u;s.onload=function(){n.remove();};s.onerror=function(){n.textContent='Không tải được Shopee Analyzer. Shopee/Chrome có thể đang chặn file ngoài.';};(d.head||d.documentElement).appendChild(s);})();";
     document.getElementById('scriptUrl').textContent = scriptUrl;
     document.getElementById('bookmarklet').value = bookmarklet;
