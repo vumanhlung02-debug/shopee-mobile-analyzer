@@ -3,7 +3,7 @@
 
   const APP_ID = 'scm-mobile-analyzer';
   const API_ORIGIN = 'https://affiliate.shopee.vn';
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 50;
   const MAX_API_PAGES = 20;
   const MIN_SPLIT_SECONDS = 60 * 60;
   const SUPPORTED_HOST_RE = /(^|\.)affiliate\.shopee\.vn$/i;
