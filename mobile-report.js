@@ -4,8 +4,8 @@
   const APP_ID = 'scm-mobile-analyzer';
   const API_ORIGIN = 'https://affiliate.shopee.vn';
   const PAGE_SIZE = 100;
-  const MAX_ORDER_PAGES = 10000;
-  const MAX_CLICK_PAGES = 100000;
+  const MAX_API_PAGES = 20;
+  const MIN_SPLIT_SECONDS = 60 * 60;
   const SUPPORTED_HOST_RE = /(^|\.)affiliate\.shopee\.vn$/i;
   const state = {
     days: 7,
@@ -175,11 +175,11 @@
     return Number(data.total_count || data.total || data.count || fallback || 0) || 0;
   }
 
-  async function fetchPaged(pathBuilder, maxPages) {
+  async function fetchPaged(pathBuilder, label) {
     const all = [];
     let total = Infinity;
-    for (let page = 1; page <= maxPages && (page - 1) * PAGE_SIZE < total; page++) {
-      setStatus(`Đang tải trang ${page}...`);
+    for (let page = 1; page <= MAX_API_PAGES && (page - 1) * PAGE_SIZE < total; page++) {
+      setStatus(`Đang tải ${label} trang ${page}...`);
       const payload = await fetchJson(pathBuilder(page));
       const list = extractList(payload);
       total = extractTotal(payload, list.length);
@@ -187,7 +187,23 @@
       if (!list.length || list.length < PAGE_SIZE || page * PAGE_SIZE >= total) break;
       await new Promise((resolve) => setTimeout(resolve, 120));
     }
-    return all;
+    return {
+      items: all,
+      total,
+      hitPageLimit: all.length < total && all.length >= PAGE_SIZE * MAX_API_PAGES,
+    };
+  }
+
+  async function fetchWindowed(range, pathBuilder, label, depth = 0) {
+    const result = await fetchPaged((page) => pathBuilder(page, range), label);
+    const span = range.endSec - range.startSec;
+    if (result.hitPageLimit && span > MIN_SPLIT_SECONDS && depth < 12) {
+      const midSec = Math.floor((range.startSec + range.endSec) / 2);
+      const left = await fetchWindowed({ startSec: range.startSec, endSec: midSec }, pathBuilder, `${label} A`, depth + 1);
+      const right = await fetchWindowed({ startSec: midSec + 1, endSec: range.endSec }, pathBuilder, `${label} B`, depth + 1);
+      return left.concat(right);
+    }
+    return result.items;
   }
 
   function normalizeOrderContainer(container, index) {
@@ -255,13 +271,15 @@
     render();
     try {
       const range = buildRange(state.days);
-      const orderRaw = await fetchPaged(
-        (page) => `/api/v3/report/list?page_size=${PAGE_SIZE}&page_num=${page}&purchase_time_s=${range.startSec}&purchase_time_e=${range.endSec}&version=1`,
-        MAX_ORDER_PAGES,
+      const orderRaw = await fetchWindowed(
+        range,
+        (page, part) => `/api/v3/report/list?page_size=${PAGE_SIZE}&page_num=${page}&purchase_time_s=${part.startSec}&purchase_time_e=${part.endSec}&version=1`,
+        'chuyển đổi',
       );
-      const clickRaw = await fetchPaged(
-        (page) => `/api/v1/click_report/list?click_time_s=${range.startSec}&click_time_e=${range.endSec}&page_num=${page}&page_size=${PAGE_SIZE}`,
-        MAX_CLICK_PAGES,
+      const clickRaw = await fetchWindowed(
+        range,
+        (page, part) => `/api/v1/click_report/list?click_time_s=${part.startSec}&click_time_e=${part.endSec}&page_num=${page}&page_size=${PAGE_SIZE}`,
+        'click',
       );
       state.orders = orderRaw.flatMap(normalizeOrderContainer).filter((order) => order.purchaseTs);
       state.clicks = clickRaw.map(normalizeClick).filter((click) => click.clickTs);
