@@ -12,6 +12,7 @@
     days: 7,
     orders: [],
     clicks: [],
+    requestConcurrency: PAGE_CONCURRENCY,
     loading: false,
     error: '',
   };
@@ -138,10 +139,23 @@
     if (!isSupportedPage()) {
       throw new Error('Hãy mở trang affiliate.shopee.vn, đăng nhập Shopee Affiliate, rồi chạy bookmarklet tại chính trang đó.');
     }
-    const response = await fetch(`${API_ORIGIN}${path}`, {
-      credentials: 'include',
-      cache: 'no-store',
-    });
+    let response;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        response = await fetch(`${API_ORIGIN}${path}`, {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        break;
+      } catch (error) {
+        state.requestConcurrency = 1;
+        if (attempt === 3) {
+          throw new Error(`Không kết nối được API Shopee sau 3 lần thử (${path.includes('click_report') ? 'click' : 'chuyển đổi'}). Kiểm tra mạng, tải lại trang Shopee Affiliate rồi chạy lại.`);
+        }
+        setStatus(`Mất kết nối Shopee, đang thử lại lần ${attempt + 1}/3...`);
+        await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+      }
+    }
     if (response.status === 401 || response.status === 403) {
       throw new Error('Chưa đăng nhập Shopee Affiliate hoặc phiên đăng nhập đã hết hạn.');
     }
@@ -197,11 +211,13 @@
     }
     const pages = Math.min(MAX_API_PAGES, Math.ceil(total / PAGE_SIZE));
     const results = [first];
-    for (let start = 2; start <= pages; start += PAGE_CONCURRENCY) {
-      setStatus(`Đang tải ${label} trang ${start}-${Math.min(start + PAGE_CONCURRENCY - 1, pages)}/${pages}...`);
-      const batch = Array.from({ length: Math.min(PAGE_CONCURRENCY, pages - start + 1) }, (_, i) =>
+    for (let start = 2; start <= pages;) {
+      const batchSize = Math.min(state.requestConcurrency, pages - start + 1);
+      setStatus(`Đang tải ${label} trang ${start}-${start + batchSize - 1}/${pages}...`);
+      const batch = Array.from({ length: batchSize }, (_, i) =>
         fetchJson(pathBuilder(start + i, range)).then(extractList));
       results.push(...await Promise.all(batch));
+      start += batchSize;
     }
     return results.flat();
   }
@@ -268,6 +284,7 @@
   async function loadData() {
     state.loading = true;
     state.error = '';
+    state.requestConcurrency = PAGE_CONCURRENCY;
     render();
     try {
       const range = buildRange(state.days);
