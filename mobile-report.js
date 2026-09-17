@@ -6,6 +6,7 @@
   const PAGE_SIZE = 50;
   const MAX_API_PAGES = 20;
   const MIN_SPLIT_SECONDS = 60 * 60;
+  const PAGE_CONCURRENCY = 3;
   const SUPPORTED_HOST_RE = /(^|\.)affiliate\.shopee\.vn$/i;
   const state = {
     days: 7,
@@ -175,35 +176,34 @@
     return Number(data.total_count || data.total || data.count || fallback || 0) || 0;
   }
 
-  async function fetchPaged(pathBuilder, label) {
-    const all = [];
-    let total = Infinity;
-    for (let page = 1; page <= MAX_API_PAGES && (page - 1) * PAGE_SIZE < total; page++) {
-      setStatus(`Đang tải ${label} trang ${page}...`);
-      const payload = await fetchJson(pathBuilder(page));
-      const list = extractList(payload);
-      total = extractTotal(payload, list.length);
-      all.push(...list);
-      if (!list.length || list.length < PAGE_SIZE || page * PAGE_SIZE >= total) break;
-      await new Promise((resolve) => setTimeout(resolve, 120));
-    }
-    return {
-      items: all,
-      total,
-      hitPageLimit: all.length < total && all.length >= PAGE_SIZE * MAX_API_PAGES,
-    };
+  async function fetchWindowed(range, pathBuilder, label, depth = 0) {
+    setStatus(`Đang kiểm tra ${label}...`);
+    const payload = await fetchJson(pathBuilder(1, range));
+    const first = extractList(payload);
+    const total = extractTotal(payload, first.length);
+    return fetchWindowedPages(range, pathBuilder, label, depth, first, total);
   }
 
-  async function fetchWindowed(range, pathBuilder, label, depth = 0) {
-    const result = await fetchPaged((page) => pathBuilder(page, range), label);
+  async function fetchWindowedPages(range, pathBuilder, label, depth, first, total) {
     const span = range.endSec - range.startSec;
-    if (result.hitPageLimit && span > MIN_SPLIT_SECONDS && depth < 12) {
+    if (total > PAGE_SIZE * MAX_API_PAGES) {
+      if (span <= MIN_SPLIT_SECONDS || depth >= 12) {
+        throw new Error(`${label} vượt giới hạn ${intFmt(PAGE_SIZE * MAX_API_PAGES)} mục trong một giờ. Vui lòng chọn khoảng ngày ngắn hơn.`);
+      }
       const midSec = Math.floor((range.startSec + range.endSec) / 2);
       const left = await fetchWindowed({ startSec: range.startSec, endSec: midSec }, pathBuilder, `${label} A`, depth + 1);
       const right = await fetchWindowed({ startSec: midSec + 1, endSec: range.endSec }, pathBuilder, `${label} B`, depth + 1);
       return left.concat(right);
     }
-    return result.items;
+    const pages = Math.min(MAX_API_PAGES, Math.ceil(total / PAGE_SIZE));
+    const results = [first];
+    for (let start = 2; start <= pages; start += PAGE_CONCURRENCY) {
+      setStatus(`Đang tải ${label} trang ${start}-${Math.min(start + PAGE_CONCURRENCY - 1, pages)}/${pages}...`);
+      const batch = Array.from({ length: Math.min(PAGE_CONCURRENCY, pages - start + 1) }, (_, i) =>
+        fetchJson(pathBuilder(start + i, range)).then(extractList));
+      results.push(...await Promise.all(batch));
+    }
+    return results.flat();
   }
 
   function normalizeOrderContainer(container, index) {
